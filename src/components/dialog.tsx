@@ -17,6 +17,8 @@ export default function Dialog({
   }, [close]);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const dialog = ref.current;
     const focusable = () =>
       Array.from(
@@ -60,6 +62,7 @@ export default function Dialog({
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("keydown", keydown);
+      document.body.style.overflow = previousOverflow;
       if (previous && document.contains(previous)) previous.focus();
     };
   }, []);

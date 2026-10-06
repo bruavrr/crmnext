@@ -1,6 +1,7 @@
 "use client";
 import { useSyncExternalStore, useState } from "react";
 import { useRouter } from "next/navigation";
+import Brand from "@/components/brand";
 const subscribe = () => () => {};
 export default function Invite() {
   const router = useRouter();
@@ -41,7 +42,8 @@ export default function Invite() {
             } else setError(data.error);
           }}
         >
-          <span className="eyebrow">NEXTGEN CRM</span>
+          <Brand compact />
+          <span className="eyebrow">SEU ACESSO À NEXT GEN ADS</span>
           <h2>Seu próximo capítulo.</h2>
           <p>Crie uma senha com pelo menos 12 caracteres.</p>
           <label>

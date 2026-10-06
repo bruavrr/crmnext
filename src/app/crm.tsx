@@ -1,7 +1,8 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import Modal from "@/components/dialog";
+import Brand from "@/components/brand";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
@@ -25,7 +26,6 @@ import {
   Target,
   TrendingUp,
   UserPlus,
-  Layers3,
   PanelLeftClose,
   Menu,
   X,
@@ -132,10 +132,12 @@ function LeadTable({
         <thead>
           <tr>
             <th>Nome do lead</th>
+            <th>Contato</th>
             <th>Origem</th>
             <th>Responsável</th>
             <th>Etapa</th>
             <th>Temperatura</th>
+            <th>Último contato</th>
             <th>Próxima ação</th>
             <th />
           </tr>
@@ -160,6 +162,11 @@ function LeadTable({
                 </div>
               </td>
               <td>
+                <span className="lead-contact">
+                  {l.phone || l.email || l.instagram || "Não informado"}
+                </span>
+              </td>
+              <td>
                 <span className="source-dot" /> {l.source}
               </td>
               <td>
@@ -181,6 +188,7 @@ function LeadTable({
               <td>
                 <Temperature value={l.temperature} />
               </td>
+              <td>{date(l.last_contact_at)}</td>
               <td>
                 {l.sla_breached ? (
                   <span className="sla">
@@ -221,6 +229,9 @@ function LeadTable({
   );
 }
 export default function CRM() {
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
+  const [taskView, setTaskView] = useState("all");
   const [renderTime] = useState(() => Date.now());
   const [followupDate, setFollowupDate] = useState(() => {
     const d = new Date(Date.now() + 86400000);
@@ -354,6 +365,41 @@ export default function CRM() {
     return () => clearInterval(timer);
   }, [load]);
   useEffect(() => {
+    if (!sideOpen) return;
+    const trigger = menuTrigger.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSideOpen(false);
+        return;
+      }
+      if (event.key === "Tab") {
+        const controls = Array.from(
+          menuRef.current?.querySelectorAll<HTMLElement>(
+            "a[href], button:not(:disabled)",
+          ) || [],
+        );
+        const first = controls[0],
+          last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKey);
+      trigger?.focus();
+    };
+  }, [sideOpen]);
+  useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 5000);
     return () => clearTimeout(timer);
@@ -429,8 +475,9 @@ export default function CRM() {
   if (!data)
     return (
       <div className="loading">
-        <Layers3 size={36} />
-        <h2>NextGen CRM</h2>
+        <Brand compact />
+        <span className="loading-orbit" aria-hidden="true" />
+        <h2>Preparando seu comercial</h2>
         <p>{error || "Preparando seu espaço de trabalho…"}</p>
         {error && (
           <button className="primary" onClick={load}>
@@ -440,6 +487,16 @@ export default function CRM() {
       </div>
     );
   const m = data.metrics;
+  const todayKey = new Date(renderTime).toDateString();
+  const visibleTasks = data.tasks.filter((t) => {
+    if (taskView === "all") return true;
+    if (taskView === "done") return !!t.completed_at;
+    if (t.completed_at) return false;
+    const due = new Date(t.due_at);
+    if (taskView === "today") return due.toDateString() === todayKey;
+    if (taskView === "late") return due.getTime() < renderTime;
+    return due.getTime() > renderTime && due.toDateString() !== todayKey;
+  });
   const statCards = [
     {
       title: "Leads recebidos hoje",
@@ -491,19 +548,26 @@ export default function CRM() {
     .join(" ");
   return (
     <div className="app-shell">
-      <aside className={"sidebar " + (sideOpen ? "open" : "")}>
-        <Link className="brand" href="/">
-          <span className="brand-icon">
-            <Layers3 size={23} />
-          </span>
-          <b>
-            nextgen<span>CRM</span>
-          </b>
+      <aside
+        id="workspace-navigation"
+        aria-label="Menu principal"
+        ref={menuRef}
+        className={"sidebar " + (sideOpen ? "open" : "")}
+      >
+        <button
+          className="icon-button drawer-close"
+          aria-label="Fechar navegação"
+          onClick={() => setSideOpen(false)}
+        >
+          <X size={20} />
+        </button>
+        <Link className="brand" href="/" aria-label="Next Gen Ads — início">
+          <Brand compact />
         </Link>
         <button className="workspace" onClick={() => setTab("Configurações")}>
           <span className="workspace-avatar">N</span>
           <span>
-            <strong>NextDim</strong>
+            <strong>Next Gen Ads</strong>
             <small>Workspace comercial</small>
           </span>
           <ChevronDown size={15} />
@@ -520,6 +584,7 @@ export default function CRM() {
               <button
                 key={name}
                 className={tab === name ? "active" : ""}
+                aria-current={tab === name ? "page" : undefined}
                 onClick={() => {
                   setTab(name);
                   setSideOpen(false);
@@ -542,7 +607,18 @@ export default function CRM() {
             <span>
               <span className="live-dot" /> Distribuição automática
             </span>
-            <small>SDRs disponíveis no rodízio</small>
+            <small>
+              {
+                data.users.filter(
+                  (u) =>
+                    u.role === "sdr" &&
+                    u.active &&
+                    u.rotation_enabled &&
+                    u.availability === "available",
+                ).length
+              }{" "}
+              SDRs elegíveis · Round Robin
+            </small>
           </div>
           <button
             className="profile"
@@ -570,6 +646,9 @@ export default function CRM() {
             <button
               className="icon-button mobile-menu"
               aria-label="Abrir menu"
+              ref={menuTrigger}
+              aria-expanded={sideOpen}
+              aria-controls="workspace-navigation"
               onClick={() => setSideOpen(true)}
             >
               <Menu size={20} />
@@ -583,6 +662,7 @@ export default function CRM() {
             <label className="global-search">
               <Search size={16} />
               <input
+                aria-label="Busca global"
                 placeholder="Buscar leads, empresas…"
                 value={search}
                 onChange={(e) => {
@@ -652,11 +732,17 @@ export default function CRM() {
           )}
           <div className="page-heading">
             <div>
-              <div className="eyebrow">SEU COMERCIAL, EM MOVIMENTO</div>
+              <div className="eyebrow">NEXT GEN ADS / SALES WORKSPACE</div>
               <h1>{tab === "Dashboard" ? "Visão geral" : tab}</h1>
+              {tab === "Dashboard" && (
+                <div className="greeting">
+                  Olá, {data.actor.name.split(" ")[0]}{" "}
+                  <span aria-hidden="true">👋</span>
+                </div>
+              )}
               <p>
                 {tab === "Dashboard"
-                  ? `Olá, ${data.actor.name.split(" ")[0]}. Acompanhe os resultados e encontre seu próximo passo.`
+                  ? "Seu comercial em perspectiva. Transforme a próxima conversa em resultado."
                   : tab === "Meu Dia"
                     ? "As ações que merecem sua atenção, na ordem certa."
                     : tab === "Pipeline"
@@ -859,12 +945,12 @@ export default function CRM() {
                         >
                           <stop
                             offset="0%"
-                            stopColor="#17a879"
+                            stopColor="#efab65"
                             stopOpacity=".19"
                           />
                           <stop
                             offset="100%"
-                            stopColor="#17a879"
+                            stopColor="#efab65"
                             stopOpacity="0"
                           />
                         </linearGradient>
@@ -876,7 +962,7 @@ export default function CRM() {
                             x2="620"
                             y1={55 + i * 42}
                             y2={55 + i * 42}
-                            stroke="#edf0f3"
+                            stroke="#2b2b31"
                             strokeDasharray="4 5"
                           />
                           <text x="10" y={59 + i * 42} className="chart-label">
@@ -891,7 +977,7 @@ export default function CRM() {
                       <polyline
                         points={points}
                         fill="none"
-                        stroke="#18a878"
+                        stroke="#efab65"
                         strokeWidth="2.5"
                         strokeLinejoin="round"
                       />
@@ -901,8 +987,8 @@ export default function CRM() {
                             cx={45 + i * 91}
                             cy={180 - (d.count / max) * 125}
                             r="4"
-                            fill="white"
-                            stroke="#18a878"
+                            fill="#111113"
+                            stroke="#efab65"
                             strokeWidth="2"
                           />
                           <text
@@ -927,23 +1013,23 @@ export default function CRM() {
                     <Target size={18} className="muted" />
                   </div>
                   {[
-                    { label: "Leads recebidos", n: m.total, color: "#a4decc" },
+                    { label: "Leads recebidos", n: m.total, color: "#f5c598" },
                     {
                       label: "Em atendimento",
                       n: m.attending,
-                      color: "#71c7ae",
+                      color: "#efb47a",
                     },
                     {
                       label: "Reuniões agendadas",
                       n: m.meetings,
-                      color: "#45b594",
+                      color: "#e99e55",
                     },
                     {
                       label: "Propostas enviadas",
                       n: m.proposals,
-                      color: "#249c78",
+                      color: "#ce873f",
                     },
-                    { label: "Vendas realizadas", n: m.won, color: "#147957" },
+                    { label: "Vendas realizadas", n: m.won, color: "#ab6e32" },
                   ].map((s) => (
                     <div className="funnel-row" key={s.label}>
                       <span>{s.label}</span>
@@ -972,7 +1058,7 @@ export default function CRM() {
               <section className="panel team-performance">
                 <div className="panel-heading">
                   <div>
-                    <h3>Uma equipe. Muitas conquistas.</h3>
+                    <h3>Distribuição & desempenho</h3>
                     <p>Acompanhe a distribuição e o desempenho das SDRs</p>
                   </div>
                   <button
@@ -992,7 +1078,15 @@ export default function CRM() {
                           <strong>{u.name}</strong>
                           <small>Sales Development Representative</small>
                         </div>
-                        <span className="badge green">
+                        <span
+                          className={
+                            "badge " +
+                            (data.users.find((x) => x.id === u.id)
+                              ?.availability === "available"
+                              ? "green"
+                              : "neutral")
+                          }
+                        >
                           {data.users.find((x) => x.id === u.id)
                             ?.availability === "available"
                             ? "Disponível"
@@ -1003,6 +1097,25 @@ export default function CRM() {
                         {[
                           ["Recebidos", u.received],
                           ["Contatados", u.contacted],
+                          [
+                            "Em atendimento",
+                            m.total <= data.listLimit
+                              ? data.leads.filter(
+                                  (l) =>
+                                    l.owner_id === u.id &&
+                                    l.stage_kind === "open" &&
+                                    l.first_contact_at,
+                                ).length
+                              : "—",
+                          ],
+                          [
+                            "Follow-ups",
+                            m.total <= data.listLimit
+                              ? data.leads.filter(
+                                  (l) => l.owner_id === u.id && l.next_followup,
+                                ).length
+                              : "—",
+                          ],
                           ["Reuniões", u.meetings],
                           ["Vendas", u.won],
                         ].map(([label, n]) => (
@@ -1020,6 +1133,57 @@ export default function CRM() {
                         <b>
                           {((u.won / Math.max(u.received, 1)) * 100).toFixed(1)}
                           % conversão
+                        </b>
+                      </div>
+                      <div
+                        className="distribution-bar"
+                        role="meter"
+                        aria-label={`Participação de ${u.name} na distribuição`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(
+                          (u.received /
+                            Math.max(
+                              1,
+                              data.comparison.reduce(
+                                (n, person) => n + person.received,
+                                0,
+                              ),
+                            )) *
+                            100,
+                        )}
+                      >
+                        <i
+                          style={{
+                            width: `${
+                              (u.received /
+                                Math.max(
+                                  1,
+                                  data.comparison.reduce(
+                                    (n, person) => n + person.received,
+                                    0,
+                                  ),
+                                )) *
+                              100
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <div className="distribution-caption">
+                        <span>Participação nos leads recebidos</span>
+                        <b>
+                          {Math.round(
+                            (u.received /
+                              Math.max(
+                                1,
+                                data.comparison.reduce(
+                                  (n, person) => n + person.received,
+                                  0,
+                                ),
+                              )) *
+                              100,
+                          )}
+                          %
                         </b>
                       </div>
                     </div>
@@ -1441,7 +1605,28 @@ export default function CRM() {
                   Criar tarefa
                 </button>
               </div>
-              {data.tasks.map((t) => (
+              <div
+                className="segmented-tabs"
+                role="group"
+                aria-label="Filtrar tarefas"
+              >
+                {[
+                  ["all", "Todas"],
+                  ["today", "Hoje"],
+                  ["late", "Atrasadas"],
+                  ["next", "Próximas"],
+                  ["done", "Concluídas"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    aria-pressed={taskView === value}
+                    onClick={() => setTaskView(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {visibleTasks.map((t) => (
                 <div className="list-row" key={t.id}>
                   <button
                     className={"task-check " + (t.completed_at ? "done" : "")}
@@ -1491,11 +1676,15 @@ export default function CRM() {
                   </span>
                 </div>
               ))}
-              {!data.tasks.length && (
+              {!visibleTasks.length && (
                 <div className="empty">
                   <CheckSquare size={28} />
                   <h3>Espaço para o próximo passo</h3>
-                  <p>Crie uma tarefa relacionada a um lead.</p>
+                  <p>
+                    {taskView === "all"
+                      ? "Crie uma tarefa relacionada a um lead."
+                      : "Nenhuma tarefa neste filtro. Veja as outras categorias ou crie uma nova ação."}
+                  </p>
                 </div>
               )}
             </section>
@@ -1859,9 +2048,9 @@ export default function CRM() {
           )}
           <footer className="page-footer">
             <span>
-              NextGen CRM <span>·</span> Feito para o próximo passo.
+              Next Gen Ads <span>·</span> Feito para o próximo passo.
             </span>
-            <span>NextDim · Comercial</span>
+            <span>Sales Workspace</span>
           </footer>
         </div>
       </main>

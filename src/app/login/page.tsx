@@ -2,7 +2,8 @@
 import { useSyncExternalStore, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { ArrowRight, Layers3 } from "lucide-react";
+import { ArrowRight, ShieldCheck, Workflow, Target } from "lucide-react";
+import Brand from "@/components/brand";
 const subscribe = () => () => {};
 export default function Login() {
   const router = useRouter();
@@ -16,25 +17,27 @@ export default function Login() {
   return (
     <main className="auth-shell">
       <section className="auth-brand">
-        <div className="brand">
-          <Layers3 />
-          <b>
-            nextgen<span>CRM</span>
-          </b>
-        </div>
+        <Brand />
         <div>
-          <span className="eyebrow">MENOS ATRITO. MAIS CONVERSÃO.</span>
+          <span className="eyebrow">NEXT GEN ADS · SALES WORKSPACE</span>
           <h1>
-            Grandes relações.
+            Cada oportunidade.
             <br />
-            Novos negócios.
+            Um próximo nível.
           </h1>
           <p>
-            O espaço da sua equipe para transformar cada oportunidade em um
-            próximo passo.
+            Distribuição inteligente. Atendimento no tempo certo. Sua operação
+            comercial, em um só lugar.
           </p>
         </div>
-        <small>NextDim · Seu comercial, conectado.</small>
+        <div className="auth-capabilities">
+          <span>
+            <Workflow size={16} /> Distribuição equilibrada
+          </span>
+          <span>
+            <Target size={16} /> Foco na conversão
+          </span>
+        </div>
       </section>
       <section className="auth-form">
         <form
@@ -59,9 +62,12 @@ export default function Login() {
               );
           }}
         >
+          <div className="auth-mobile-brand">
+            <Brand compact />
+          </div>
           <span className="eyebrow">BEM-VINDO DE VOLTA</span>
-          <h2>Vamos fazer acontecer.</h2>
-          <p>Acesse sua conta para acompanhar o comercial.</p>
+          <h2>Seu próximo negócio começa aqui.</h2>
+          <p>Entre no workspace comercial da Next Gen Ads.</p>
           <label>
             E-mail
             <input
@@ -86,13 +92,20 @@ export default function Login() {
               {error}
             </p>
           )}
-          <button className="primary" disabled={busy || !ready}>
-            {busy ? "Entrando…" : "Entrar no CRM"}
+          <button
+            className="primary"
+            aria-label="Entrar no CRM"
+            disabled={busy || !ready}
+          >
+            {busy ? "Entrando…" : "Entrar"}
             <ArrowRight size={17} />
           </button>
           <small>
             Primeiro acesso? Use o convite enviado pelo administrador.
           </small>
+          <div className="auth-security">
+            <ShieldCheck size={14} /> Acesso seguro e exclusivo da equipe
+          </div>
         </form>
       </section>
     </main>
