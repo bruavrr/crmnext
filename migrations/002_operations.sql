@@ -1,0 +1,7 @@
+ALTER TABLE users ADD COLUMN session_version integer NOT NULL DEFAULT 0;
+CREATE TABLE meetings (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), lead_id uuid NOT NULL REFERENCES leads(id), owner_id uuid NOT NULL REFERENCES users(id), title text NOT NULL, starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL, notes text, cancelled_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), CHECK(ends_at>starts_at));
+CREATE INDEX meetings_schedule ON meetings(owner_id,starts_at) WHERE cancelled_at IS NULL;
+CREATE TABLE prospects (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), username text UNIQUE NOT NULL, name text NOT NULL, owner_id uuid NOT NULL REFERENCES users(id), status text NOT NULL DEFAULT 'Não abordado' CHECK(status IN ('Não abordado','Abordado','Respondeu','Interessado','Reunião marcada','Convertido','Sem interesse','Sem resposta')), first_contact_at timestamptz, last_message text, followup_at timestamptz, notes text, lead_id uuid REFERENCES leads(id), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX prospects_owner ON prospects(owner_id,status);
+CREATE TABLE score_rules (event text PRIMARY KEY, points integer NOT NULL CHECK(points BETWEEN -100 AND 100), updated_at timestamptz NOT NULL DEFAULT now());
+INSERT INTO score_rules(event,points) VALUES('reply',10),('meeting',20),('high_intent',10),('no_response',-10);
